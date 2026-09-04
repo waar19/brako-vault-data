@@ -1,0 +1,83 @@
+name: Build offline breach database
+
+on:
+  workflow_dispatch:
+    inputs:
+      corpus_date:
+        description: UTC corpus date (YYYY-MM-DD)
+        required: true
+        type: string
+      base_limit:
+        description: Number of hashes in the APK base
+        required: true
+        default: "1000000"
+        type: string
+      expansion_limit:
+        description: Number of hashes in the optional package
+        required: true
+        default: "10000000"
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build Bloom filters
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Test generator
+        run: python -m unittest discover -s tools/leaked-password-filter -p "test_*.py"
+
+      - name: Stream official SHA-1 ranges and build filters
+        env:
+          CORPUS_DATE: ${{ inputs.corpus_date }}
+          BASE_LIMIT: ${{ inputs.base_limit }}
+          EXPANSION_LIMIT: ${{ inputs.expansion_limit }}
+        run: |
+          [[ "$CORPUS_DATE" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]
+          [[ "$BASE_LIMIT" =~ ^[0-9]+$ ]]
+          [[ "$EXPANSION_LIMIT" =~ ^[0-9]+$ ]]
+          mkdir -p dist
+          python tools/leaked-password-filter/download_and_build.py \
+            --corpus-date "$CORPUS_DATE" \
+            --base-output dist/brako-vault-leaked-passwords-base-1m.blf \
+            --base-limit "$BASE_LIMIT" \
+            --expansion-output dist/brako-vault-leaked-passwords-10m.blf \
+            --expansion-limit "$EXPANSION_LIMIT"
+          sha256sum dist/brako-vault-leaked-passwords-base-1m.blf | awk '{print $1}' > dist/brako-vault-leaked-passwords-base-1m.blf.sha256
+          sha256sum dist/brako-vault-leaked-passwords-10m.blf | awk '{print $1}' > dist/brako-vault-leaked-passwords-10m.blf.sha256
+          cat dist/*.sha256
+
+      - name: Upload generated files for review
+        uses: actions/upload-artifact@v4
+        with:
+          name: leaked-password-filters-${{ inputs.corpus_date }}
+          path: |
+            dist/*.blf
+            dist/*.sha256
+          compression-level: 0
+          if-no-files-found: error
+
+      - name: Publish data release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CORPUS_DATE: ${{ inputs.corpus_date }}
+        run: |
+          data_tag="leaked-passwords-${CORPUS_DATE}-${GITHUB_RUN_NUMBER}"
+          gh release create "$data_tag" \
+            dist/brako-vault-leaked-passwords-base-1m.blf \
+            dist/brako-vault-leaked-passwords-base-1m.blf.sha256 \
+            dist/brako-vault-leaked-passwords-10m.blf \
+            dist/brako-vault-leaked-passwords-10m.blf.sha256 \
+            --title "Base offline de contraseñas filtradas ${CORPUS_DATE}" \
+            --notes "Datos offline para Brako Vault. La base de 1 millón va embebida en el APK; el paquete de 10 millones se descarga opcionalmente desde Ajustes. No contiene contraseñas en claro: son filtros de Bloom sobre SHA-1 del corpus Pwned Passwords de Have I Been Pwned (https://haveibeenpwned.com/Passwords)."
