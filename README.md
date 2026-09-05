@@ -1,116 +1,158 @@
-# Datos offline de contraseñas filtradas para Brako Vault
+# Offline leaked-password data for Brako Vault
 
-Este repositorio **público** contiene los filtros de Bloom (`.blf`) que
-Brako Vault usa para detectar contraseñas filtradas **sin conexión a
-internet**. Se genera a partir del corpus público de Pwned Passwords de
-Have I Been Pwned y se publica como release para que Brako Vault lo
-descargue en tiempo de build (CI) o el usuario lo importe manualmente.
+**[English](README.md)** | [Español](README.es.md) | [Português](README.pt.md) | [Français](README.fr.md) | [Deutsch](README.de.md) | [Italiano](README.it.md) | [日本語](README.ja.md) | [简体中文](README.zh-CN.md)**
 
-## ¿Por qué un repositorio separado y público?
+This public repository contains the Bloom filters (`.blf`) that
+[Brako Vault](https://github.com/waar19/brako-vault) uses to detect
+leaked passwords **without an internet connection**. Each filter is
+derived from the public Pwned Passwords corpus maintained by Have I
+Been Pwned, and is published as a release so Brako Vault's build
+pipeline (CI) can fetch it or a user can import it manually.
 
-La app Brako Vault **jamás declara el permiso `INTERNET`** en su APK
-(ver `SECURITY.md` de [waar19/brako-vault](https://github.com/waar19/brako-vault)).
-Por eso necesita que los datos viajen **dentro** del APK o que el
-usuario los importe a mano desde un archivo.
+## Why a separate, public repository?
 
-Además, el corpus de Pwned Passwords pesa decenas de GB. Generar los
-filtros requiere un runner con RAM y tiempo generoso. Los repos
-**públicos** en GitHub tienen minutos de Actions **gratis e
-ilimitados** en runners estándar, mientras que los privados cuentan
-contra el plan del dueño. Por eso este repo es público y autocontenido.
+The Brako Vault APK **never declares the `INTERNET` permission** (see
+the `SECURITY.md` in [waar19/brako-vault-releases](https://github.com/waar19/brako-vault-releases/blob/master/SECURITY.md)).
+That means the leaked-password data must travel **inside** the APK or
+be imported manually by the user from a file.
 
-## ¿Qué hay aquí?
+In addition, the full Pwned Passwords corpus weighs dozens of
+gigabytes. Building the filters requires a runner with generous RAM
+and time. **Public** GitHub repositories get unlimited free Actions
+minutes on standard runners, while private repositories count against
+the owner's plan. That is why this repository is public and
+self-contained.
 
-- **`tools/leaked-password-filter/`** — generador en Python 3.
-  `build_filter.py` transforma la salida `HASH:COUNT` del corpus en
-  un `.blf`. `download_and_build.py` descarga en streaming los rangos
-  SHA-1 oficiales de Pwned Passwords (sin guardar el corpus completo
-  a disco) y construye los filtros en paralelo. `test_build_filter.py`
-  valida el formato. `measure_fpr.py` mide la tasa de falsos
-  positivos.
-- **`.github/workflows/build-data.yml`** — workflow manual
-  (`workflow_dispatch`) que corre el generador en un runner de
-  GitHub Actions y publica los artefactos como release.
+## What is here
 
-## Formato `.blf`
+- **`tools/leaked-password-filter/`** — Python 3 generator.
+  `build_filter.py` transforms the `HASH:COUNT` output of the Pwned
+  Passwords corpus into a `.blf` file. `download_and_build.py`
+  streams the official SHA-1 ranges from Pwned Passwords (without
+  saving the full corpus to disk) and builds the filters in
+  parallel. `test_build_filter.py` validates the format.
+  `measure_fpr.py` measures the empirical false-positive rate.
+- **`.github/workflows/build-data.yml`** — manual workflow
+  (`workflow_dispatch`) that runs the generator on a GitHub Actions
+  runner and publishes the artifacts as a release.
 
-Cada archivo `.blf` es un filtro de Bloom sobre los SHA-1 de las
-contraseñas filtradas. **No contiene contraseñas en claro**, solo
-los bits del filtro. La app cliente:
+## Attribution and license
 
-1. Calcula `SHA-1` de la contraseña candidata.
-2. Deriva dos hashes de 64 bits con SHA-256 sobre esos 20 bytes
-   (esquema doble-hash de Kirsch-Mitzenmacher).
-3. Comprueba los bits correspondientes en el `.blf`.
+The leaked-password filter in this repository is a Bloom-filter
+derivative of the Pwned Passwords corpus, which is created and
+maintained by Have I Been Pwned, a service operated by Troy Hunt.
 
-Un positivo del filtro significa "la contraseña **podría** estar
-filtrada". La app entonces la marca como filtrada. El filtro tiene
-una tasa de falsos positivos medida (típicamente ≤ 0,0001) calibrada
-en `measure_fpr.py`.
+- **Pwned Passwords service**: <https://haveibeenpwned.com/Passwords>
+- **Operator**: Troy Hunt — <https://www.troyhunt.com>
+- **Service**: Have I Been Pwned — <https://haveibeenpwned.com>
+- **Public API used at build time**:
+  `https://api.pwnedpasswords.com/range/{prefix}` — see
+  <https://haveibeenpwned.com/API/v3#PwnedPasswords>
+- **Official downloader reference**:
+  <https://github.com/HaveIBeenPwned/PwnedPasswordsDownloader>
+
+The Pwned Passwords API is offered with **no licensing or attribution
+requirements**. The official Have I Been Pwned documentation states
+literally: *"In order to help maximise adoption, there is no
+licencing or attribution requirements on the Pwned Passwords API,
+although it is welcomed if you would like to include it."* (see
+<https://haveibeenpwned.com/API/v3#PwnedPasswords>). The HIBP
+breach/paste APIs are separately licensed under CC BY 4.0, but
+**that license does not apply to Pwned Passwords**, and this
+repository does not use those endpoints.
+
+Brako Vault includes this attribution section to make the data
+lineage explicit, not because it is required. If you redistribute
+the `.blf` files from this repository, please keep this section
+intact.
+
+### What this repository contains — and what it does not
+
+- The Pwned Passwords corpus itself: **no**. This repository only
+  contains a Bloom-filter derivative of the SHA-1 hashes.
+- Plaintext passwords: **no**. Only the bits of the Bloom filter.
+- Network contact with HIBP **at build time**: yes.
+  `download_and_build.py` issues GET requests to
+  `api.pwnedpasswords.com/range/{prefix}` to download SHA-1 ranges
+  in streaming fashion. The script does not store the corpus
+  locally; it processes each range, keeps a heap of the top N
+  hashes, and discards the rest.
+- Network contact with HIBP **at runtime in the Brako Vault app**:
+  **no**. The APK does not declare the `INTERNET` permission.
+
+## `.blf` format
+
+Each `.blf` file is a Bloom filter over the SHA-1 hashes of leaked
+passwords. **It does not contain plaintext passwords**, only the bits
+of the filter. The client app:
+
+1. Computes `SHA-1` of the candidate password.
+2. Derives two 64-bit lane indices by hashing those 20 bytes with
+   SHA-256 (Kirsch-Mitzenmacher double-hashing scheme).
+3. Checks the corresponding bits in the `.blf`.
+
+A positive result from the filter means "this password **may** be
+leaked"; the app then flags it. The filter is sized to keep the
+empirical false-positive rate at or below 1 in 10 000
+(calibrated and measured by `measure_fpr.py`).
 
 ## Releases
 
-Cada ejecución exitosa del workflow publica un release con la
-etiqueta `leaked-passwords-YYYY-MM-DD-N` (fecha del corpus + número
-de corrida) con estos assets:
+Each successful run of the workflow publishes a release with the tag
+`leaked-passwords-YYYY-MM-DD-N` (corpus date + run number) and these
+assets:
 
-| Archivo | Tamaño aproximado | Uso |
-|---|---|---|
-| `brako-vault-leaked-passwords-base-1m.blf` | ~2-3 MB | Embebido en el APK. Detecta las 1 millón de contraseñas más prevalentes. |
-| `brako-vault-leaked-passwords-base-1m.blf.sha256` | ~100 B | Checksum SHA-256 de la base, para verificación en CI. |
-| `brako-vault-leaked-passwords-10m.blf` | ~20-30 MB | Paquete opcional de 10 millones. **No** entra en el APK; el usuario lo descarga desde Ajustes. |
-| `brako-vault-leaked-passwords-10m.blf.sha256` | ~100 B | Checksum SHA-256 del paquete, para verificación al importar. |
+| File | Approximate size | Use |
+|------|------------------|-----|
+| `brako-vault-leaked-passwords-base-1m.blf` | ~2-3 MB | Embedded in the APK. Covers the 1 million most prevalent leaked passwords. |
+| `brako-vault-leaked-passwords-base-1m.blf.sha256` | ~100 B | SHA-256 checksum of the base, for CI verification. |
+| `brako-vault-leaked-passwords-10m.blf` | ~20-30 MB | Optional 10-million package. **Does not** ship inside the APK; the user downloads it from Settings. |
+| `brako-vault-leaked-passwords-10m.blf.sha256` | ~100 B | SHA-256 checksum of the package, for verification on import. |
 
-## Cómo se usan desde la app
+## How the app uses this data
 
-### Base de 1 millón (embebida en el APK)
+### 1-million base (embedded in the APK)
 
-El CI de [waar19/brako-vault](https://github.com/waar19/brako-vault)
-descarga `brako-vault-leaked-passwords-base-1m.blf` desde el release
-más reciente de este repo, **verifica su SHA-256**, y la coloca en
-`androidApp/src/main/assets/leaked-passwords/base.blf` antes de
-compilar. Si el checksum no coincide, el build falla.
+The CI of [waar19/brako-vault](https://github.com/waar19/brako-vault)
+downloads `brako-vault-leaked-passwords-base-1m.blf` from the latest
+release of this repository, **verifies its SHA-256**, and places it in
+`androidApp/src/main/assets/leaked-passwords/base.blf` before
+compiling. If the checksum does not match, the build fails.
 
-### Paquete de 10 millones (importación manual)
+### 10-million package (manual import)
 
-El usuario descarga `brako-vault-leaked-passwords-10m.blf` (y su
-`.sha256`) desde la página de releases de este repo, y desde la app
-va a **Ajustes → Base de datos de contraseñas filtradas → Importar
-expansión**. La app abre el selector de archivos del sistema (SAF),
-el usuario elige el `.blf` descargado, y la app verifica el SHA-256
-antes de activar la base ampliada. Si la verificación falla, la base
-no se activa.
+The user downloads `brako-vault-leaked-passwords-10m.blf` (and its
+`.sha256`) from the Releases page of this repository, and from the
+app opens **Settings → Leaked-password database → Import expansion**.
+The app opens the system file picker (SAF), the user selects the
+downloaded `.blf`, and the app verifies the SHA-256 before activating
+the expanded base. If the verification fails, the base is not
+activated.
 
-## Atribución
+## How to generate a new release
 
-Los datos derivan del corpus **Pwned Passwords** de **Have I Been
-Pwned**, de uso libre con atribución:
+1. Go to the **Actions** tab of this repository.
+2. Select the workflow **"Build offline breach database"**.
+3. Click **Run workflow** and enter:
+   - `corpus_date`: UTC date of the corpus to use
+     (`YYYY-MM-DD` format).
+   - `base_limit`: number of hashes in the embedded base
+     (default `1000000`).
+   - `expansion_limit`: number of hashes in the expansion
+     (default `10000000`).
+4. Wait. Generation can take 1-2 hours (free, because the repository
+   is public). The log shows progress per SHA-1 range.
+5. When finished, the release appears in the **Releases** tab with
+   the 4 assets.
 
-- <https://haveibeenpwned.com/Passwords>
-- Licencia: <https://haveibeenpwned.com/API/v3#License>
+For technical details of the generator (Kirsch-Mitzenmacher scheme,
+Content-MD5 verification, heap-based top-N selection, bootstrap
+mode), see
+[`tools/leaked-password-filter/README.md`](tools/leaked-password-filter/README.md).
 
-Brako Vault no almacena, transmite ni contacta el servicio de HIBP.
-Solo embebe y opcionalmente importa un derivado en formato Bloom
-filter.
+## Local verification
 
-## Cómo generar un release nuevo
-
-1. Ve a la pestaña **Actions** de este repo.
-2. Selecciona el workflow **"Build offline breach database"**.
-3. Pulsa **Run workflow** e introduce:
-   - `corpus_date`: fecha UTC del corpus a usar (formato `YYYY-MM-DD`).
-   - `base_limit`: cantidad de hashes en la base embebida (default
-     `1000000`).
-   - `expansion_limit`: cantidad de hashes en la expansión (default
-     `10000000`).
-4. Espera. La generación puede tardar 1-2 horas (es gratis por ser
-   repo público). El log muestra el progreso de cada rango SHA-1.
-5. Al terminar, el release aparece en la pestaña **Releases** con
-   los 4 assets.
-
-## Verificación local
-
-Si querés probar el generador sin esperar el workflow:
+If you want to try the generator without waiting for the workflow:
 
 ```bash
 git clone https://github.com/waar19/brako-vault-data.git
@@ -118,5 +160,12 @@ cd brako-vault-data
 python -m unittest discover -s tools/leaked-password-filter -p "test_*.py"
 ```
 
-Los tests usan un corpus sintético pequeño, no requieren red, y
-validan el formato `.blf` y la API del generador.
+The tests use a small synthetic corpus, do not require the network,
+and validate the `.blf` format and the generator API.
+
+## Privacy
+
+This repository does not contain any personal data. It contains only
+Bloom-filter bits derived from public SHA-1 hashes of leaked
+passwords. No Brako Vault user data, no email addresses, no breach
+content, and no plaintext passwords are stored here.
