@@ -1,9 +1,9 @@
 # Dati offline di password violate per Brako Vault
 
-[English](README.md) | [Español](README.es.md) | [Português](README.pt.md) | [Français](README.fr.md) | [Deutsch](README.de.md) | **[Italiano](README.it.md)** | [日本語](README.ja.md) | [简体中文](README.zh-CN.md)**
+[English](README.md) | [Español](README.es.md) | [Português](README.pt.md) | [Français](README.fr.md) | [Deutsch](README.de.md) | **[Italiano](README.it.md)** | [日本語](README.ja.md) | [简体中文](README.zh-CN.md)
 
 Questo repository **pubblico** contiene i filtri di Bloom (`.blf`)
-che [Brako Vault](https://github.com/waar19/brako-vault) usa per
+che [Brako Vault](https://github.com/waar19/brako-vault-releases) usa per
 rilevare le password violate **senza connessione a internet**. Ogni
 filtro è derivato dal corpus pubblico Pwned Passwords mantenuto da
 Have I Been Pwned, ed è pubblicato come release in modo che la
@@ -102,48 +102,58 @@ dimensionato per mantenere il tasso empirico di falsi positivi a
 ## Release
 
 Ogni esecuzione riuscita del workflow pubblica una release con il
-tag `leaked-passwords-YYYY-MM-DD-N` (data del corpus + numero di
-esecuzione) e questi asset:
+tag `leaked-passwords-YYYY-MM-DD-N` (etichetta del corpus fornita da
+chi esegue il workflow + numero di esecuzione) e questi asset:
 
 | File | Dimensione approssimativa | Uso |
 |---|---|---|
 | `brako-vault-leaked-passwords-base-1m.blf` | ~2-3 MB | Incorporato nell'APK. Copre il milione di password violate più diffuse. |
-| `brako-vault-leaked-passwords-base-1m.blf.sha256` | ~100 B | Checksum SHA-256 della base, per verifica in CI. |
-| `brako-vault-leaked-passwords-10m.blf` | ~20-30 MB | Pacchetto opzionale da 10 milioni. **Non** entra nell'APK; l'utente lo scarica dalle Impostazioni. |
-| `brako-vault-leaked-passwords-10m.blf.sha256` | ~100 B | Checksum SHA-256 del pacchetto, per verifica all'importazione. |
+| `brako-vault-leaked-passwords-base-1m.blf.sha256` | ~100 B | Checksum SHA-256 della base, per verifica indipendente e in CI. |
+| `brako-vault-leaked-passwords-10m.blf` | ~20-30 MB | Pacchetto opzionale da 10 milioni. **Non** entra nell'APK; l'utente lo scarica da GitHub Releases e lo seleziona nelle Impostazioni. |
+| `brako-vault-leaked-passwords-10m.blf.sha256` | ~100 B | Checksum SHA-256 del pacchetto, per verifica indipendente e in CI. L'app non legge questo sidecar durante l'importazione. |
 
 ## Come l'app usa questi dati
 
 ### Base da 1 milione (incorporata nell'APK)
 
-La CI di [waar19/brako-vault](https://github.com/waar19/brako-vault)
-scarica `brako-vault-leaked-passwords-base-1m.blf` dall'ultima
-release di questo repository, **verifica il suo SHA-256**, e lo
-posiziona in `androidApp/src/main/assets/leaked-passwords/base.blf`
-prima della compilazione. Se il checksum non corrisponde, il build
-fallisce.
+Il workflow privato di pubblicazione di
+[Brako Vault](https://github.com/waar19/brako-vault-releases)
+scarica i file `.blf` da questo repository e verifica ciascuno
+rispetto al suo sidecar `.sha256` prima della compilazione o della
+pubblicazione. Posiziona
+`brako-vault-leaked-passwords-base-1m.blf` in
+`androidApp/src/main/assets/leaked-passwords/base.blf` prima della
+compilazione. Se un checksum non corrisponde, il build fallisce.
 
 ### Pacchetto da 10 milioni (importazione manuale)
 
-L'utente scarica `brako-vault-leaked-passwords-10m.blf` (e il suo
-`.sha256`) dalla pagina Releases di questo repository, e dall'app
-apre **Impostazioni → Database password violate → Importa
-espansione**. L'app apre il selettore file di sistema (SAF),
-l'utente sceglie il `.blf` scaricato, e l'app verifica lo SHA-256
-prima di attivare la base estesa. Se la verifica fallisce, la base
-non viene attivata.
+L'utente scarica `brako-vault-leaked-passwords-10m.blf` dalla pagina
+GitHub Releases di questo repository, apre **Impostazioni → Database
+password violate → Importa espansione** e seleziona il `.blf`
+scaricato nel selettore file di sistema (SAF). L'app non legge il
+sidecar `.sha256` durante l'importazione. Convalida invece il digest
+SHA-256 interno del corpo del file, memorizzato nell'header del
+`.blf`, prima di attivare la base estesa. Il sidecar resta
+disponibile per una verifica indipendente ed è usato dalla CI. Se il
+digest interno non corrisponde, la base non viene attivata.
 
 ## Come generare una nuova release
 
 1. Vai alla scheda **Actions** di questo repository.
 2. Seleziona il workflow **"Build offline breach database"**.
 3. Clicca **Run workflow** e inserisci:
-   - `corpus_date`: data UTC del corpus da usare (formato
-     `YYYY-MM-DD`).
-   - `base_limit`: numero di hash nella base incorporata (default
-     `1000000`).
-   - `expansion_limit`: numero di hash nell'espansione (default
-     `10000000`).
+   - `corpus_date`: etichetta `YYYY-MM-DD` fornita da chi esegue il
+     workflow per descrivere i dati interrogati dall'API live di
+     Pwned Passwords durante quell'esecuzione. Non seleziona né
+     fissa uno snapshot del corpus.
+   - `base_limit`: numero configurabile di hash nella base incorporata
+     (default `1000000`).
+   - `expansion_limit`: numero configurabile di hash nell'espansione
+     (default `10000000`).
+   Una release ufficiale deve usare esattamente `1000000` e
+   `10000000`, perché i nomi `base-1m` e `10m` e l'app dipendono da
+   tali quantità. Gli input sono configurabili e non garantiscono da
+   soli questi valori ufficiali.
 4. Attendi. La generazione può richiedere 1-2 ore (è gratuita
    perché il repository è pubblico). Il log mostra l'avanzamento
    per ogni intervallo SHA-1.

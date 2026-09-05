@@ -2,7 +2,7 @@
 
 [English](README.md) | [Español](README.es.md) | [Português](README.pt.md) | [Français](README.fr.md) | [Deutsch](README.de.md) | [Italiano](README.it.md) | [日本語](README.ja.md) | **[简体中文](README.zh-CN.md)**
 
-本 **公开** 仓库包含 [Brako Vault](https://github.com/waar19/brako-vault)
+本 **公开** 仓库包含 [Brako Vault](https://github.com/waar19/brako-vault-releases)
 用来**在没有网络连接的情况下**检测泄漏密码的 Bloom 过滤器
 (`.blf`)。每个过滤器都派生自 Have I Been Pwned 维护的公开
 Pwned Passwords 语料库,并以 release 的形式发布,供 Brako Vault
@@ -92,47 +92,52 @@ Brako Vault 加入本归属章节是为了让数据来源清楚可查,不是因�
 ## Release
 
 每次工作流成功执行,会发布一个 release,标签为
-`leaked-passwords-YYYY-MM-DD-N`(语料库日期 + 运行序号),包含
-以下资源:
+`leaked-passwords-YYYY-MM-DD-N`(执行者提供的语料库标签 +
+运行序号),包含以下资源:
 
 | 文件 | 大致大小 | 用途 |
 |---|---|---|
 | `brako-vault-leaked-passwords-base-1m.blf` | 约 2-3 MB | 嵌入 APK。覆盖最常见的 100 万条泄漏密码。 |
-| `brako-vault-leaked-passwords-base-1m.blf.sha256` | 约 100 B | 基础库的 SHA-256 校验和,用于 CI 验证。 |
-| `brako-vault-leaked-passwords-10m.blf` | 约 20-30 MB | 可选的 1000 万条数据包。**不**随 APK 一起分发;用户从设置中下载。 |
-| `brako-vault-leaked-passwords-10m.blf.sha256` | 约 100 B | 数据包的 SHA-256 校验和,用于导入时验证。 |
+| `brako-vault-leaked-passwords-base-1m.blf.sha256` | 约 100 B | 基础库的 SHA-256 校验和,用于独立验证和 CI 验证。 |
+| `brako-vault-leaked-passwords-10m.blf` | 约 20-30 MB | 可选的 1000 万条数据包。**不**随 APK 一起分发;用户从 GitHub Releases 下载并在设置中选择。 |
+| `brako-vault-leaked-passwords-10m.blf.sha256` | 约 100 B | 数据包的 SHA-256 校验和,用于独立验证和 CI 验证。应用导入时不读取此 sidecar。 |
 
 ## 应用如何使用这些数据
 
 ### 100 万条基础库(嵌入 APK)
 
-[waar19/brako-vault](https://github.com/waar19/brako-vault) 的 CI
-从本仓库的最新 release 下载
-`brako-vault-leaked-passwords-base-1m.blf`,**验证其 SHA-256**,
-然后在编译前将其放入
+[Brako Vault](https://github.com/waar19/brako-vault-releases) 的
+私有发布工作流从本仓库下载 `.blf` 文件,并在编译或发布前将每个
+文件与其 `.sha256` sidecar 核对。它还会在编译前将
+`brako-vault-leaked-passwords-base-1m.blf` 放入
 `androidApp/src/main/assets/leaked-passwords/base.blf`。如果
-校验和不匹配,构建会失败。
+任一校验和不匹配,构建会失败。
 
 ### 1000 万条数据包(手动导入)
 
-用户从本仓库的 Releases 页面下载
-`brako-vault-leaked-passwords-10m.blf`(及其 `.sha256`),
-然后在应用内打开 **设置 → 泄漏密码数据库 → 导入扩展**。
-应用打开系统文件选择器(SAF),用户选择下载的 `.blf`,
-应用在激活扩展库之前验证其 SHA-256。如果验证失败,扩展库
-不会被激活。
+用户从本仓库的 GitHub Releases 页面下载
+`brako-vault-leaked-passwords-10m.blf`,然后在应用内打开
+**设置 → 泄漏密码数据库 → 导入扩展**,并在系统文件选择器
+(SAF)中选择下载的 `.blf`。应用导入时不读取 `.sha256`
+sidecar;它会在激活扩展库之前,验证 `.blf` 头部所存储的文件
+正文内部 SHA-256 摘要。sidecar 仍可用于独立验证,CI 也会使用
+它。如果内部摘要不匹配,扩展库不会被激活。
 
 ## 如何生成新的 release
 
 1. 转到本仓库的 **Actions** 选项卡。
 2. 选择工作流 **"Build offline breach database"**。
 3. 点击 **Run workflow** 并填写:
-   - `corpus_date`: 所用语料库的 UTC 日期
-     (`YYYY-MM-DD` 格式)。
-   - `base_limit`: 嵌入基础库中的哈希数量
+   - `corpus_date`: 由执行者提供的 `YYYY-MM-DD` 标签,用于描述
+     该次执行期间从 Pwned Passwords 实时 API 查询的数据。它
+     不会选择或固定语料库快照。
+   - `base_limit`: 嵌入基础库中可配置的哈希数量
      (默认 `1000000`)。
-   - `expansion_limit`: 扩展中的哈希数量
+   - `expansion_limit`: 扩展中可配置的哈希数量
      (默认 `10000000`)。
+   正式 release 必须恰好使用 `1000000` 和 `10000000`,因为
+   `base-1m` 与 `10m` 文件名以及应用都依赖这些数量。输入值
+   可以配置,本身并不保证使用这些正式数值。
 4. 等待。生成可能需要 1-2 小时(由于仓库是公开的,所以免费)。
    日志显示每个 SHA-1 范围的进度。
 5. 完成后,release 出现在 **Releases** 选项卡中,包含 4 个资源。

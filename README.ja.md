@@ -1,9 +1,9 @@
 # Brako Vault 用 オフライン漏洩パスワードデータ
 
-[English](README.md) | [Español](README.es.md) | [Português](README.pt.md) | [Français](README.fr.md) | [Deutsch](README.de.md) | [Italiano](README.it.md) | **[日本語](README.ja.md)** | [简体中文](README.zh-CN.md)**
+[English](README.md) | [Español](README.es.md) | [Português](README.pt.md) | [Français](README.fr.md) | [Deutsch](README.de.md) | [Italiano](README.it.md) | **[日本語](README.ja.md)** | [简体中文](README.zh-CN.md)
 
 この **公開** リポジトリは、
-[Brako Vault](https://github.com/waar19/brako-vault) が
+[Brako Vault](https://github.com/waar19/brako-vault-releases) が
 **インターネット接続なし** で漏洩パスワードを検出するために使う
 Bloom フィルタ (`.blf`) を含みます。各フィルタは Have I Been
 Pwned が管理する Pwned Passwords コーパスから派生したもので、
@@ -103,49 +103,58 @@ Brako Vault はデータの系譜を明確にするため、必須ではない�
 
 ## リリース
 
-ワークフローの正常終了ごとに、コーパス日と連番を含む
-`leaked-passwords-YYYY-MM-DD-N` タグで次のアセットを release
-として公開します:
+ワークフローの正常終了ごとに、実行者が指定したコーパスラベルと
+連番を含む `leaked-passwords-YYYY-MM-DD-N` タグで次のアセットを
+release として公開します:
 
 | ファイル | おおよそのサイズ | 用途 |
 |---|---|---|
 | `brako-vault-leaked-passwords-base-1m.blf` | 約 2〜3 MB | APK に同梱。最も出現頻度の高い 100 万件の漏洩パスワードをカバー。 |
-| `brako-vault-leaked-passwords-base-1m.blf.sha256` | 約 100 B | ベースの SHA-256 チェックサム (CI 検証用)。 |
-| `brako-vault-leaked-passwords-10m.blf` | 約 20〜30 MB | 任意の 1 千万件パッケージ。APK には **入らない**。設定からユーザがダウンロード。 |
-| `brako-vault-leaked-passwords-10m.blf.sha256` | 約 100 B | パッケージの SHA-256 チェックサム (インポート時検証用)。 |
+| `brako-vault-leaked-passwords-base-1m.blf.sha256` | 約 100 B | ベースの SHA-256 チェックサム (独立検証および CI 検証用)。 |
+| `brako-vault-leaked-passwords-10m.blf` | 約 20〜30 MB | 任意の 1 千万件パッケージ。APK には **入らない**。ユーザが GitHub Releases からダウンロードし、設定で選択。 |
+| `brako-vault-leaked-passwords-10m.blf.sha256` | 約 100 B | パッケージの SHA-256 チェックサム (独立検証および CI 検証用)。アプリはインポート時にこの sidecar を読みません。 |
 
 ## アプリでの利用方法
 
 ### 100 万件のベース (APK に同梱)
 
-[waar19/brako-vault](https://github.com/waar19/brako-vault) の CI
-が本リポジトリの最新 release から
-`brako-vault-leaked-passwords-base-1m.blf` をダウンロードし、
-**SHA-256 を検証** した上で、ビルド前に
+[Brako Vault](https://github.com/waar19/brako-vault-releases) の
+非公開リリースワークフローは、本リポジトリから `.blf` ファイルを
+ダウンロードし、コンパイルまたは公開の前に各ファイルを対応する
+`.sha256` sidecar と照合します。また、ビルド前に
+`brako-vault-leaked-passwords-base-1m.blf` を
 `androidApp/src/main/assets/leaked-passwords/base.blf` に配置
 します。チェックサムが一致しなければビルドは失敗します。
 
 ### 1 千万件のパッケージ (手動インポート)
 
-ユーザは本リポジトリの Releases ページから
-`brako-vault-leaked-passwords-10m.blf` (および `.sha256`)
-をダウンロードし、アプリ内で **設定 → 漏洩パスワード DB →
-拡張をインポート** を開きます。アプリはシステムのファイル選択
-(SAF) を開き、ユーザがダウンロードした `.blf` を選ぶと、
-アプリは拡張ベースを有効化する前に SHA-256 を検証します。
-検証に失敗した場合、ベースは有効化されません。
+ユーザは本リポジトリの GitHub Releases ページから
+`brako-vault-leaked-passwords-10m.blf` をダウンロードし、
+アプリ内で **設定 → 漏洩パスワード DB → 拡張をインポート** を
+開いて、システムのファイル選択 (SAF) でダウンロードした `.blf`
+を選びます。アプリはインポート時に `.sha256` sidecar を読み
+ません。代わりに、拡張ベースを有効化する前に `.blf` ヘッダに
+格納されたファイル本体の内部 SHA-256 ダイジェストを検証します。
+sidecar は独立検証に利用でき、CI でも使用されます。内部
+ダイジェストが一致しなければ、ベースは有効化されません。
 
 ## 新しい release の生成方法
 
 1. 本リポジトリの **Actions** タブを開く。
 2. ワークフロー **"Build offline breach database"** を選択する。
 3. **Run workflow** をクリックし、以下を入力する:
-   - `corpus_date`: 使用するコーパスの UTC 日付
-     (`YYYY-MM-DD` 形式)。
-   - `base_limit`: 同梱ベース内のハッシュ数 (デフォルト
-     `1000000`)。
-   - `expansion_limit`: 拡張のハッシュ数 (デフォルト
-     `10000000`)。
+   - `corpus_date`: 実行者が指定する `YYYY-MM-DD` ラベル。
+     その実行中に Pwned Passwords の live API から取得した
+     データを表します。コーパスの snapshot を選択または固定
+     するものではありません。
+   - `base_limit`: 同梱ベース内の設定可能なハッシュ数
+     (デフォルト `1000000`)。
+   - `expansion_limit`: 拡張内の設定可能なハッシュ数
+     (デフォルト `10000000`)。
+   公式 release では、`base-1m` と `10m` というファイル名および
+   アプリがこれらの件数に依存するため、正確に `1000000` と
+   `10000000` を使用する必要があります。入力値は設定可能であり、
+   それ自体が公式値を保証するものではありません。
 4. 待機する。生成には 1〜2 時間かかることがある (公開リポ
    なので無料)。ログに各 SHA-1 範囲の進捗が表示される。
 5. 完了後、release は **Releases** タブに 4 アセットとともに
